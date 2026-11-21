@@ -1,0 +1,27 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependencies & Build output
+node_modules
+dist
+
+# Environment variables (Never commit database passwords or secrets)
+.env
+.env.local
+.env.*
+
+# OS and IDE files
+.DS_Store
+.idea
+.vscode
+*.suo
+*.sw?
+
+# Deployment guides & root configs
+README_DEPLOYMENT.md
+deploy.sh
+backup-db.sh
