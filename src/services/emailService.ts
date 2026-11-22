@@ -12,12 +12,21 @@ export interface SendMailOptions {
   authPassword?: string;
 }
 
-const DEFAULT_SMTP_HOST = process.env.SMTP_HOST || 'smtp.titan.email';
-const DEFAULT_SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
-const DEFAULT_MAILBOX_PASS = process.env.SMTP_PASS || '';
+function sanitizeSecret(val?: string): string {
+  if (!val) return '';
+  return val
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .replace(/[\r\n]/g, '')
+    .trim();
+}
 
-export const CONTACT_EMAIL = process.env.SMTP_USER_CONTACT || 'contact@thepperfumestory.com';
-export const SALES_EMAIL = process.env.SMTP_USER_SALES || 'sales@thepperfumestory.com';
+const DEFAULT_SMTP_HOST = sanitizeSecret(process.env.SMTP_HOST) || 'smtp.hostinger.com';
+const DEFAULT_SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
+const DEFAULT_MAILBOX_PASS = sanitizeSecret(process.env.SMTP_PASS);
+
+export const CONTACT_EMAIL = sanitizeSecret(process.env.SMTP_USER_CONTACT) || 'contact@thepperfumestory.com';
+export const SALES_EMAIL = sanitizeSecret(process.env.SMTP_USER_SALES) || 'sales@thepperfumestory.com';
 
 /**
  * Single-Host SMTP SMTPS (Port 465) / STARTTLS Sender with Multiline RFC 5321 parser
@@ -196,13 +205,16 @@ async function attemptSmtpSend(
  * Robust Raw SMTPS Sender with Automatic Multi-Host Failover
  */
 export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
-  const primaryHost = process.env.SMTP_HOST || DEFAULT_SMTP_HOST;
+  const primaryHost = sanitizeSecret(process.env.SMTP_HOST) || DEFAULT_SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || String(DEFAULT_SMTP_PORT), 10);
-  const password = options.authPassword || process.env.SMTP_PASS || DEFAULT_MAILBOX_PASS;
+  const rawPass = options.authPassword || process.env.SMTP_PASS || DEFAULT_MAILBOX_PASS;
+  const password = sanitizeSecret(rawPass);
 
-  // Candidate hosts to try: Titan (Hostinger primary), Hostinger native, and custom domain
+  console.log(`[SMTP Attempt] Initiating delivery to ${options.to} via Auth "${options.authEmail}" (Pass length: ${password.length})`);
+
+  // Candidate hosts: Hostinger native primary (verified by DNS MX records), then primaryHost, then Titan
   const candidateHosts = Array.from(
-    new Set([primaryHost, 'smtp.titan.email', 'smtp.hostinger.com', 'mail.thepperfumestory.com'])
+    new Set(['smtp.hostinger.com', primaryHost, 'smtp.titan.email'])
   ).filter(Boolean) as string[];
 
   for (const host of candidateHosts) {
