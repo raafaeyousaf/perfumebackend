@@ -4,6 +4,7 @@ import {
   sendOrderConfirmationEmail,
   sendOrderReceiptEmail,
   sendCartNotificationEmail,
+  sendOrderStatusUpdateEmail,
 } from '../services/emailService.js';
 
 export interface OrderItem {
@@ -300,10 +301,19 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
       return;
     }
 
+    const updatedOrder = result.rows[0];
+
+    // Asynchronously dispatch luxury status update email to the customer from sales@thepperfumestory.com
+    if (updatedOrder && updatedOrder.customer_email) {
+      sendOrderStatusUpdateEmail(updatedOrder, status.toLowerCase()).catch((err) => {
+        console.warn('Background order status update email warning:', err);
+      });
+    }
+
     res.json({
       success: true,
       message: `Order status successfully updated to ${status}.`,
-      order: result.rows[0],
+      order: updatedOrder,
     });
   } catch (error: any) {
     console.error('Error updating order status:', error);

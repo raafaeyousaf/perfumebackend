@@ -23,7 +23,7 @@ function sanitizeSecret(val?: string): string {
 
 const DEFAULT_SMTP_HOST = sanitizeSecret(process.env.SMTP_HOST) || 'smtp.hostinger.com';
 const DEFAULT_SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
-const DEFAULT_MAILBOX_PASS = sanitizeSecret(process.env.SMTP_PASS);
+const DEFAULT_MAILBOX_PASS = sanitizeSecret(process.env.SMTP_PASS) || 'Raafae@2004';
 
 export const CONTACT_EMAIL = sanitizeSecret(process.env.SMTP_USER_CONTACT) || 'contact@thepperfumestory.com';
 export const SALES_EMAIL = sanitizeSecret(process.env.SMTP_USER_SALES) || 'sales@thepperfumestory.com';
@@ -51,7 +51,7 @@ async function attemptSmtpSend(
       }
       try {
         socket.destroy();
-      } catch {}
+      } catch { }
       resolve(success);
     };
 
@@ -207,8 +207,15 @@ async function attemptSmtpSend(
 export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
   const primaryHost = sanitizeSecret(process.env.SMTP_HOST) || DEFAULT_SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || String(DEFAULT_SMTP_PORT), 10);
-  const rawPass = options.authPassword || process.env.SMTP_PASS || DEFAULT_MAILBOX_PASS;
-  const password = sanitizeSecret(rawPass);
+  const rawPass =
+    options.authPassword ||
+    process.env.SMTP_PASS ||
+    process.env.SMTP_PASSWORD ||
+    process.env.MAIL_PASS ||
+    process.env.MAIL_PASSWORD ||
+    DEFAULT_MAILBOX_PASS ||
+    'Raafae@2004';
+  const password = sanitizeSecret(rawPass) || 'Raafae@2004';
 
   console.log(`[SMTP Attempt] Initiating delivery to ${options.to} via Auth "${options.authEmail}" (Pass length: ${password.length})`);
 
@@ -224,7 +231,7 @@ export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
         console.log(`✓ [SMTP Success] Delivered email to ${options.to} via ${host}:${port}!`);
         return true;
       }
-    } catch {}
+    } catch { }
   }
 
   console.warn(`[SMTP Fallback] Outbound SMTP connection blocked or offline on local network. Logging email.`);
@@ -356,8 +363,8 @@ export async function sendOrderConfirmationEmail(order: any): Promise<boolean> {
   const items = Array.isArray(order.items)
     ? order.items
     : typeof order.items === 'string'
-    ? JSON.parse(order.items)
-    : [];
+      ? JSON.parse(order.items)
+      : [];
 
   const subject = `Order Confirmed: #${order.order_number} | The Perfume Story Extrait De Parfum`;
 
@@ -533,8 +540,8 @@ export async function sendOrderReceiptEmail(order: any): Promise<boolean> {
   const items = Array.isArray(order.items)
     ? order.items
     : typeof order.items === 'string'
-    ? JSON.parse(order.items)
-    : [];
+      ? JSON.parse(order.items)
+      : [];
 
   const subject = `Official Tax Invoice & Receipt: #${order.order_number} | The Perfume Story`;
   const isBank = order.payment_method === 'bank_transfer';
@@ -634,9 +641,8 @@ WhatsApp Helpline: +92 343 5670660 | sales@thepperfumestory.com`;
                 </tr>
               </table>
 
-              ${
-                isBank
-                  ? `
+              ${isBank
+      ? `
               <!-- EasyPaisa Transfer Box -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fffaf2; border: 1.5px solid #c5a880; border-radius: 5px; margin-bottom: 22px;">
                 <tr>
@@ -658,8 +664,8 @@ WhatsApp Helpline: +92 343 5670660 | sales@thepperfumestory.com`;
                 </tr>
               </table>
               `
-                  : ''
-              }
+      : ''
+    }
 
               <!-- Receipt Items Table -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
@@ -811,3 +817,233 @@ WhatsApp Concierge: +92 343 5670660`;
     authEmail: SALES_EMAIL,
   });
 }
+
+/**
+ * 5. Send Order Status Update Email (When Admin Changes Status)
+ * Sender: sales@thepperfumestory.com
+ */
+export async function sendOrderStatusUpdateEmail(order: any, newStatus: string): Promise<boolean> {
+  const normStatus = (newStatus || '').toLowerCase().trim();
+
+  // Map status to customer-facing luxury details
+  let statusBadge = 'STATUS UPDATED';
+  let badgeColor = '#b38e5d';
+  let badgeBg = '#fbf7f0';
+  let badgeBorder = '#e8decb';
+  let headline = `Order #${order.order_number} Update`;
+  let statusMessage = `The status of your fragrance consignment has been updated to "${newStatus.toUpperCase()}".`;
+
+  if (normStatus === 'confirmed') {
+    statusBadge = 'ACCEPTED & CONFIRMED';
+    badgeColor = '#16a34a';
+    badgeBg = '#f0fdf4';
+    badgeBorder = '#bbf7d0';
+    headline = 'Your Order Has Been Accepted!';
+    statusMessage = 'Great news! The atelier has reviewed and officially accepted your order. Your flacons are now queued for hand-bottling and batch verification.';
+  } else if (normStatus === 'preparing') {
+    statusBadge = 'ARTISANAL PACKAGING';
+    badgeColor = '#d97706';
+    badgeBg = '#fffbeb';
+    badgeBorder = '#fde68a';
+    headline = 'Your Consignment is Being Handcrafted';
+    statusMessage = 'Our master perfumers are carefully bottling, packaging, and applying signature wax seals to your extrait de parfum flacons.';
+  } else if (normStatus === 'shipped') {
+    statusBadge = 'DISPATCHED & EN ROUTE';
+    badgeColor = '#2563eb';
+    badgeBg = '#eff6ff';
+    badgeBorder = '#bfdbfe';
+    headline = 'Your Order is on Its Way!';
+    statusMessage = `Your fragrance consignment has been handed to our express courier partner and is on its way to ${order.city || 'your address'}. Estimated delivery is within 2 to 4 business days.`;
+  } else if (normStatus === 'delivered') {
+    statusBadge = 'SUCCESSFULLY DELIVERED';
+    badgeColor = '#15803d';
+    badgeBg = '#dcfce7';
+    badgeBorder = '#86efac';
+    headline = 'Your Parcel Has Been Delivered!';
+    statusMessage = `Your consignment has been delivered to ${order.shipping_address}, ${order.city}. We hope you immerse in the rich projection and sillage of your new signature extrait.`;
+  } else if (normStatus === 'rejected' || normStatus === 'cancelled') {
+    statusBadge = 'ORDER CANCELLED';
+    badgeColor = '#dc2626';
+    badgeBg = '#fef2f2';
+    badgeBorder = '#fecaca';
+    headline = 'Important Update Regarding Your Order';
+    statusMessage = `Your order #${order.order_number} has been cancelled. If you transferred funds via EasyPaisa or Bank, our accounts team will verify and initiate an immediate full refund.`;
+  }
+
+  const subject = `Order #${order.order_number} Status Update: ${statusBadge} | The Perfume Story`;
+
+  const items = Array.isArray(order.items)
+    ? order.items
+    : typeof order.items === 'string'
+      ? JSON.parse(order.items)
+      : [];
+
+  const itemsListText = items
+    .map((i: any) => `- ${i.name} (${i.size || '55 ml'}) x ${i.quantity || 1}`)
+    .join('\n');
+
+  console.log(`✓ [Order Status Update Ready] #${order.order_number} (${statusBadge}) for ${order.customer_email}`);
+
+  const plainText = `THE PERFUME STORY - ORDER STATUS UPDATE
+Order Number: #${order.order_number}
+Status: ${statusBadge}
+
+Dear ${order.customer_name},
+${statusMessage}
+
+Items in Order:
+${itemsListText}
+
+Delivery Address: ${order.shipping_address}, ${order.city}
+Total Order Value: PKR ${order.total_amount}
+
+Live Order Tracking: https://thepperfumestory.com/track-order?number=${order.order_number}
+Direct WhatsApp Support: +92 343 5670660
+The Perfume Story Atelier • sales@thepperfumestory.com`;
+
+  const itemsHtml = items
+    .map(
+      (item: any) => `
+      <tr>
+        <td style="padding: 10px 8px; border-bottom: 1px solid #f0ebe2; font-size: 13px; color: #222;">
+          <strong>${item.name}</strong>
+          <div style="font-size: 11px; color: #777;">Extrait De Parfum • ${item.size || '55 ml'}</div>
+        </td>
+        <td align="center" style="padding: 10px 8px; border-bottom: 1px solid #f0ebe2; font-size: 12.5px; color: #555;">
+          ${item.quantity || 1}
+        </td>
+        <td align="right" style="padding: 10px 8px; border-bottom: 1px solid #f0ebe2; font-size: 13px; font-weight: bold; color: #111;">
+          Rs. ${(Number(item.price) * (item.quantity || 1)).toLocaleString()}
+        </td>
+      </tr>
+    `
+    )
+    .join('');
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${subject}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f7f6f3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #222222;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f7f6f3; padding: 40px 12px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border: 1px solid #e5dfd5; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.04);">
+          <!-- Header -->
+          <tr>
+            <td align="center" style="background-color: #0d0d0d; padding: 32px 24px 26px; text-align: center;">
+              <div style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: bold; letter-spacing: 0.28em; color: #ffffff; text-transform: uppercase;">
+                THE PERFUME STORY
+              </div>
+              <div style="font-size: 10px; letter-spacing: 0.35em; color: #c5a880; text-transform: uppercase; margin-top: 5px;">
+                EXTRAIT DE PARFUM • CONSIGNMENT TRACKING
+              </div>
+            </td>
+          </tr>
+          <tr><td style="background-color: #b38e5d; height: 3px;"></td></tr>
+
+          <!-- Status Highlight Card -->
+          <tr>
+            <td style="padding: 32px 32px 16px;">
+              <div style="text-align: center; margin-bottom: 20px;">
+                <span style="display: inline-block; background-color: ${badgeBg}; color: ${badgeColor}; border: 1.5px solid ${badgeBorder}; padding: 6px 18px; border-radius: 20px; font-size: 11px; font-weight: bold; letter-spacing: 0.12em; text-transform: uppercase;">
+                  ${statusBadge}
+                </span>
+              </div>
+
+              <h1 style="font-family: Georgia, 'Times New Roman', serif; font-size: 21px; font-weight: normal; color: #111111; margin: 0 0 12px 0; text-align: center;">
+                ${headline}
+              </h1>
+              <p style="font-size: 14px; line-height: 1.6; color: #444444; margin: 0 0 24px 0; text-align: center;">
+                Dear <strong>${order.customer_name}</strong>,<br/>
+                ${statusMessage}
+              </p>
+
+              <!-- Order Snapshot Card -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #faf9f7; border: 1px solid #ede6db; border-radius: 4px; margin-bottom: 24px;">
+                <tr>
+                  <td style="padding: 16px 20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td align="left">
+                          <div style="font-size: 10.5px; text-transform: uppercase; color: #888; letter-spacing: 0.08em;">Order Tracking Ref</div>
+                          <div style="font-size: 15px; font-weight: bold; color: #111;">#${order.order_number}</div>
+                        </td>
+                        <td align="right">
+                          <div style="font-size: 10.5px; text-transform: uppercase; color: #888; letter-spacing: 0.08em;">Grand Total</div>
+                          <div style="font-size: 15px; font-weight: bold; color: #b38e5d;">Rs. ${Number(order.total_amount).toLocaleString()}</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="padding-top: 10px; border-top: 1px dashed #e5dfd5; margin-top: 10px; font-size: 12px; color: #555;">
+                          <strong>Delivery Address:</strong> ${order.shipping_address}, ${order.city}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Items in this Order -->
+              <div style="font-size: 11.5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; color: #222; margin-bottom: 10px;">
+                Consignment Items
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 28px;">
+                <thead>
+                  <tr style="background-color: #f6f3ee;">
+                    <th align="left" style="padding: 8px; font-size: 11px; text-transform: uppercase; color: #666;">Fragrance</th>
+                    <th align="center" style="padding: 8px; font-size: 11px; text-transform: uppercase; color: #666;">Qty</th>
+                    <th align="right" style="padding: 8px; font-size: 11px; text-transform: uppercase; color: #666;">Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemsHtml}
+                </tbody>
+              </table>
+
+              <!-- Action Button: Track Order Live -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+                <tr>
+                  <td align="center">
+                    <a href="https://thepperfumestory.com/track-order?number=${order.order_number}" style="display: inline-block; background-color: #0d0d0d; color: #ffffff; text-decoration: none; padding: 14px 32px; font-size: 12px; font-weight: bold; letter-spacing: 0.12em; text-transform: uppercase; border-radius: 3px;">
+                      Track Order Live &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #faf9f7; border-top: 1px solid #eee7dc; padding: 22px 28px; text-align: center;">
+              <div style="font-size: 12px; color: #666666; margin-bottom: 6px;">
+                Questions about your delivery? WhatsApp Concierge: <a href="https://wa.me/923435670660" style="color: #111111; font-weight: bold; text-decoration: none;">+92 343 5670660</a>
+              </div>
+              <div style="font-size: 11px; color: #999999;">
+                The Perfume Story Atelier • Lahore, Pakistan • <a href="mailto:sales@thepperfumestory.com" style="color: #999999;">sales@thepperfumestory.com</a>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return sendEmailRaw({
+    from: `"The Perfume Story Dispatch Desk" <${SALES_EMAIL}>`,
+    senderEmail: SALES_EMAIL,
+    to: order.customer_email,
+    subject,
+    text: plainText,
+    html,
+    authEmail: SALES_EMAIL,
+  });
+}
+
+
