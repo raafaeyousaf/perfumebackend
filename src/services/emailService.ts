@@ -12,7 +12,7 @@ export interface SendMailOptions {
   authPassword?: string;
 }
 
-const DEFAULT_SMTP_HOST = process.env.SMTP_HOST || 'mail.thepperfumestory.com';
+const DEFAULT_SMTP_HOST = process.env.SMTP_HOST || 'smtp.titan.email';
 const DEFAULT_SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
 const DEFAULT_MAILBOX_PASS = process.env.SMTP_PASS || '';
 
@@ -20,33 +20,34 @@ export const CONTACT_EMAIL = process.env.SMTP_USER_CONTACT || 'contact@thepperfu
 export const SALES_EMAIL = process.env.SMTP_USER_SALES || 'sales@thepperfumestory.com';
 
 /**
- * Raw RFC 5321 / RFC 4954 SMTPS Client (Port 465 TLS / Port 587 STARTTLS)
- * Zero external npm dependencies - completely native Node.js tls & net.
+ * Single-Host SMTP SMTPS (Port 465) / STARTTLS Sender with Multiline RFC 5321 parser
  */
-export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
-  const host = process.env.SMTP_HOST || DEFAULT_SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT || String(DEFAULT_SMTP_PORT), 10);
-  const password = options.authPassword || process.env.SMTP_PASS || DEFAULT_MAILBOX_PASS;
-
+async function attemptSmtpSend(
+  host: string,
+  port: number,
+  options: SendMailOptions,
+  password: string
+): Promise<boolean> {
   return new Promise((resolve) => {
     let socket: tls.TLSSocket | net.Socket;
     let step = 0;
     let isFinished = false;
+    let buffer = '';
 
     const finish = (success: boolean, reason?: string) => {
       if (isFinished) return;
       isFinished = true;
       if (!success && reason) {
-        console.warn(`[SMTP Warning] Email to ${options.to} not delivered over SMTP (${reason}).`);
+        console.warn(`[SMTP Diagnostic] Host ${host}:${port} -> ${reason}`);
       }
       try {
         socket.destroy();
-      } catch { }
+      } catch {}
       resolve(success);
     };
 
     const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
-    const messageId = `<${Date.now()}.${Math.random().toString(36).substring(2)}@theperfumestory.com>`;
+    const messageId = `<${Date.now()}.${Math.random().toString(36).substring(2)}@thepperfumestory.com>`;
 
     const mimeMessage = [
       `From: ${options.from}`,
@@ -77,68 +78,83 @@ export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
       `.`,
     ].join('\r\n');
 
-    const handleData = (data: Buffer) => {
-      const response = data.toString();
-      const code = parseInt(response.substring(0, 3), 10);
+    const handleSmtpChunk = (data: Buffer) => {
+      buffer += data.toString('utf8');
 
-      // Server Greeting
-      if (step === 0 && (code === 220 || response.startsWith('220'))) {
+      // Check for full line
+      if (!buffer.includes('\r\n')) return;
+
+      const lines = buffer.split('\r\n').filter((l) => l.trim().length > 0);
+      if (lines.length === 0) return;
+
+      const lastLine = lines[lines.length - 1];
+
+      // RFC 5321 multiline reply rule: if char at index 3 is '-', more lines follow!
+      if (lastLine.length >= 4 && lastLine.charAt(3) === '-') {
+        return; // wait for final line with space
+      }
+
+      buffer = '';
+      const code = parseInt(lastLine.substring(0, 3), 10);
+
+      // Step 0: Server Greeting (220)
+      if (step === 0 && code === 220) {
         step = 1;
         socket.write(`EHLO thepperfumestory.com\r\n`);
         return;
       }
 
-      // EHLO response
-      if (step === 1 && (code === 250 || response.startsWith('250'))) {
+      // Step 1: EHLO response (250)
+      if (step === 1 && code === 250) {
         step = 2;
         socket.write(`AUTH LOGIN\r\n`);
         return;
       }
 
-      // Username challenge (334)
-      if (step === 2 && (code === 334 || response.startsWith('334'))) {
+      // Step 2: Username challenge (334)
+      if (step === 2 && code === 334) {
         step = 3;
         socket.write(`${Buffer.from(options.authEmail).toString('base64')}\r\n`);
         return;
       }
 
-      // Password challenge (334)
-      if (step === 3 && (code === 334 || response.startsWith('334'))) {
+      // Step 3: Password challenge (334)
+      if (step === 3 && code === 334) {
         step = 4;
         socket.write(`${Buffer.from(password).toString('base64')}\r\n`);
         return;
       }
 
-      // Authentication result (235)
-      if (step === 4 && (code === 235 || response.startsWith('235'))) {
+      // Step 4: Authentication Succeeded (235)
+      if (step === 4 && code === 235) {
         step = 5;
         socket.write(`MAIL FROM:<${options.senderEmail}>\r\n`);
         return;
       }
 
-      // MAIL FROM accepted (250)
-      if (step === 5 && (code === 250 || response.startsWith('250'))) {
+      // Step 5: Sender Accepted (250)
+      if (step === 5 && code === 250) {
         step = 6;
         socket.write(`RCPT TO:<${options.to}>\r\n`);
         return;
       }
 
-      // RCPT TO accepted (250)
-      if (step === 6 && (code === 250 || response.startsWith('250'))) {
+      // Step 6: Recipient Accepted (250)
+      if (step === 6 && code === 250) {
         step = 7;
         socket.write(`DATA\r\n`);
         return;
       }
 
-      // Ready for DATA (354)
-      if (step === 7 && (code === 354 || response.startsWith('354'))) {
+      // Step 7: Ready for DATA (354)
+      if (step === 7 && code === 354) {
         step = 8;
         socket.write(`${mimeMessage}\r\n`);
         return;
       }
 
-      // Message accepted (250)
-      if (step === 8 && (code === 250 || response.startsWith('250'))) {
+      // Step 8: Message Accepted (250)
+      if (step === 8 && code === 250) {
         step = 9;
         socket.write(`QUIT\r\n`);
         finish(true);
@@ -146,40 +162,61 @@ export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
       }
 
       if (code >= 400) {
-        finish(false, `Server returned ${code}: ${response.trim()}`);
+        finish(false, `SMTP code ${code}: ${lastLine}`);
       }
     };
 
     try {
       if (port === 465) {
-        // Direct SSL/TLS connection
         socket = tls.connect(
           {
             host,
             port,
             rejectUnauthorized: false,
-            timeout: 8000,
+            timeout: 6000,
           },
           () => {
-            // Socket connected
+            // Connected TLS
           }
         );
       } else {
-        // Fallback standard TCP socket
-        socket = net.connect({ host, port, timeout: 8000 });
+        socket = net.connect({ host, port, timeout: 6000 });
       }
 
-      socket.on('data', handleData);
-      socket.on('error', (err) => {
-        finish(false, err.message);
-      });
-      socket.on('timeout', () => {
-        finish(false, 'SMTP connection timeout');
-      });
+      socket.on('data', handleSmtpChunk);
+      socket.on('error', (err) => finish(false, err.message));
+      socket.on('timeout', () => finish(false, 'Connection timeout (6s)'));
     } catch (err: any) {
       finish(false, err.message);
     }
   });
+}
+
+/**
+ * Robust Raw SMTPS Sender with Automatic Multi-Host Failover
+ */
+export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
+  const primaryHost = process.env.SMTP_HOST || DEFAULT_SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || String(DEFAULT_SMTP_PORT), 10);
+  const password = options.authPassword || process.env.SMTP_PASS || DEFAULT_MAILBOX_PASS;
+
+  // Candidate hosts to try: Titan (Hostinger primary), Hostinger native, and custom domain
+  const candidateHosts = Array.from(
+    new Set([primaryHost, 'smtp.titan.email', 'smtp.hostinger.com', 'mail.thepperfumestory.com'])
+  ).filter(Boolean) as string[];
+
+  for (const host of candidateHosts) {
+    try {
+      const ok = await attemptSmtpSend(host, port, options, password);
+      if (ok) {
+        console.log(`✓ [SMTP Success] Delivered email to ${options.to} via ${host}:${port}!`);
+        return true;
+      }
+    } catch {}
+  }
+
+  console.warn(`[SMTP Fallback] Outbound SMTP connection blocked or offline on local network. Logging email.`);
+  return false;
 }
 
 /**
@@ -188,6 +225,17 @@ export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
  */
 export async function sendOtpEmail(toEmail: string, otpCode: string, purpose: string = 'sign-in'): Promise<boolean> {
   const subject = `Your Security Verification Code: ${otpCode} | The Perfume Story`;
+
+  // Always log prominently to terminal for local developer testing
+  console.log(`
+================================================================================
+💎 [THE PERFUME STORY SECURITY OTP CODE]
+   Recipient:     ${toEmail}
+   Security Code: >>> ${otpCode} <<<
+   Sender:        ${CONTACT_EMAIL}
+   Valid For:     10 Minutes
+================================================================================
+`);
 
   const plainText = `THE PERFUME STORY - EXTRAIT DE PARFUM
 Your Security Verification Code is: ${otpCode}
@@ -277,7 +325,6 @@ Lahore, Pakistan | contact@thepperfumestory.com`;
 </body>
 </html>`;
 
-  console.log(`[Email Service] Dispatched OTP code [${otpCode}] to ${toEmail} from ${CONTACT_EMAIL}`);
   return sendEmailRaw({
     from: `"The Perfume Story Concierge" <${CONTACT_EMAIL}>`,
     senderEmail: CONTACT_EMAIL,
@@ -297,14 +344,16 @@ export async function sendOrderConfirmationEmail(order: any): Promise<boolean> {
   const items = Array.isArray(order.items)
     ? order.items
     : typeof order.items === 'string'
-      ? JSON.parse(order.items)
-      : [];
+    ? JSON.parse(order.items)
+    : [];
 
   const subject = `Order Confirmed: #${order.order_number} | The Perfume Story Extrait De Parfum`;
 
   const itemsText = items
     .map((item: any) => `- ${item.name} (${item.size || '55 ml'}) x ${item.quantity || 1} = PKR ${Number(item.price) * (item.quantity || 1)}`)
     .join('\n');
+
+  console.log(`✓ [Order Confirmation Ready] #${order.order_number} for ${order.customer_email}`);
 
   const plainText = `THE PERFUME STORY - ORDER CONFIRMATION
 Order Number: #${order.order_number}
@@ -318,12 +367,10 @@ ${itemsText}
 Subtotal: PKR ${order.subtotal}
 Shipping Fee: PKR ${order.shipping_fee}
 Total Amount: PKR ${order.total_amount}
-Payment Method: ${order.payment_method === 'bank_transfer' ? 'EasyPaisa / Bank Transfer' : 'Cash On Delivery'}
+Payment Method: ${order.payment_method === 'bank_transfer' ? 'EasyPaisa / Bank Transfer (Husnain Siddique - 0343 5670660)' : 'Cash On Delivery'}
 
-Your artisanal extrait de parfum order has been logged in our atelier.
 Track your order anytime: https://thepperfumestory.com/track-order?number=${order.order_number}
-
-Questions? WhatsApp Concierge: +92 343 5670660
+WhatsApp Concierge: +92 343 5670660
 sales@thepperfumestory.com`;
 
   const itemsHtml = items
@@ -455,7 +502,6 @@ sales@thepperfumestory.com`;
 </body>
 </html>`;
 
-  console.log(`[Email Service] Dispatched Order Confirmation [#${order.order_number}] to ${order.customer_email}`);
   return sendEmailRaw({
     from: `"The Perfume Story Sales" <${SALES_EMAIL}>`,
     senderEmail: SALES_EMAIL,
@@ -475,12 +521,13 @@ export async function sendOrderReceiptEmail(order: any): Promise<boolean> {
   const items = Array.isArray(order.items)
     ? order.items
     : typeof order.items === 'string'
-      ? JSON.parse(order.items)
-      : [];
+    ? JSON.parse(order.items)
+    : [];
 
   const subject = `Official Tax Invoice & Receipt: #${order.order_number} | The Perfume Story`;
-
   const isBank = order.payment_method === 'bank_transfer';
+
+  console.log(`✓ [Official Tax Invoice Ready] #${order.order_number} for ${order.customer_email}`);
 
   const plainText = `THE PERFUME STORY - OFFICIAL TAX INVOICE & RECEIPT
 Invoice Ref: INV-${order.order_number}
@@ -489,7 +536,7 @@ Billed To: ${order.customer_name} (${order.customer_email})
 Delivery City: ${order.city}
 Grand Total Amount: PKR ${order.total_amount}
 
-${isBank ? 'EASYPAISA PAYMENT INSTRUCTIONS:\nPlease transfer PKR ' + order.total_amount + ' to EasyPaisa: +92 343 5670660 (03435670660).\nShare transaction receipt screenshot on WhatsApp to +92 343 5670660.' : 'PAYMENT: Cash on Delivery upon shipment handover.'}
+${isBank ? 'EASYPAISA PAYMENT INSTRUCTIONS:\nPlease transfer PKR ' + order.total_amount + ' to EasyPaisa: 0343 5670660 (Account Title: Husnain Siddique).\nShare transaction receipt screenshot on WhatsApp to +92 343 5670660.' : 'PAYMENT: Cash on Delivery upon shipment handover.'}
 
 Print or View Receipt: https://thepperfumestory.com/orders/receipt/${order.order_number}
 WhatsApp Helpline: +92 343 5670660 | sales@thepperfumestory.com`;
@@ -575,8 +622,9 @@ WhatsApp Helpline: +92 343 5670660 | sales@thepperfumestory.com`;
                 </tr>
               </table>
 
-              ${isBank
-      ? `
+              ${
+                isBank
+                  ? `
               <!-- EasyPaisa Transfer Box -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fffaf2; border: 1.5px solid #c5a880; border-radius: 5px; margin-bottom: 22px;">
                 <tr>
@@ -585,20 +633,21 @@ WhatsApp Helpline: +92 343 5670660 | sales@thepperfumestory.com`;
                       ⚠️ EasyPaisa / Bank Transfer Payment Required
                     </div>
                     <div style="font-size: 13px; color: #222; margin-bottom: 6px;">
-                      Please transfer <strong>PKR ${Number(order.total_amount).toLocaleString()}</strong> to EasyPaisa account:
+                      Please transfer <strong>PKR ${Number(order.total_amount).toLocaleString()}</strong> to:
                     </div>
-                    <div style="display: inline-block; background-color: #ffffff; border: 1px dashed #b38e5d; padding: 6px 14px; font-size: 14px; font-weight: bold; color: #111; margin-bottom: 8px;">
-                      📱 EasyPaisa: 0343 5670660 (+92 343 5670660)
+                    <div style="background-color: #ffffff; border: 1px dashed #b38e5d; padding: 10px 14px; border-radius: 4px; margin-bottom: 8px;">
+                      <div style="font-size: 12px; color: #555;">Account Title: <strong>Husnain Siddique</strong></div>
+                      <div style="font-size: 15px; font-weight: bold; color: #111;">📱 EasyPaisa: 0343 5670660 (+92 343 5670660)</div>
                     </div>
                     <div style="font-size: 12px; color: #666;">
-                      Transfer karne ke baad screenshot isi number par WhatsApp (<strong>+92 343 5670660</strong>) par send kar dein taake order foran dispatch ho.
+                      Transfer karne ke baad screenshot WhatsApp (<strong>+92 343 5670660</strong>) par send kar dein taake order foran dispatch ho.
                     </div>
                   </td>
                 </tr>
               </table>
               `
-      : ''
-    }
+                  : ''
+              }
 
               <!-- Receipt Items Table -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
@@ -662,7 +711,6 @@ WhatsApp Helpline: +92 343 5670660 | sales@thepperfumestory.com`;
 </body>
 </html>`;
 
-  console.log(`[Email Service] Dispatched Official Invoice Receipt [#${order.order_number}] to ${order.customer_email}`);
   return sendEmailRaw({
     from: `"The Perfume Story Accounts" <${SALES_EMAIL}>`,
     senderEmail: SALES_EMAIL,
@@ -681,6 +729,8 @@ WhatsApp Helpline: +92 343 5670660 | sales@thepperfumestory.com`;
 export async function sendCartNotificationEmail(toEmail: string, customerName: string, product: any, size: any, quantity: number): Promise<boolean> {
   const price = (Number(size?.price) || Number(product.price) || 2950) * quantity;
   const subject = `Your Selection Reserved: ${product.name} | The Perfume Story`;
+
+  console.log(`✓ [Cart Reservation Ready] for ${toEmail} (${product.name})`);
 
   const plainText = `THE PERFUME STORY - CART RESERVATION
 Dear ${customerName || 'Valued Client'},
