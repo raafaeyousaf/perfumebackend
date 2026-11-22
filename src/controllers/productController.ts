@@ -89,13 +89,14 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
 export const getProductBySlugOrId = async (req: Request, res: Response): Promise<void> => {
   try {
     const { identifier } = req.params;
+    const cleanId = (identifier || '').trim();
 
-    let sql = `SELECT * FROM products WHERE slug = $1`;
-    let params: any[] = [identifier];
+    let sql = `SELECT * FROM products WHERE LOWER(slug) = LOWER($1) OR LOWER(REPLACE(name, ' ', '-')) = LOWER($1)`;
+    let params: any[] = [cleanId];
 
-    if (/^\d+$/.test(identifier)) {
-      sql = `SELECT * FROM products WHERE id = $1 OR slug = $2`;
-      params = [parseInt(identifier, 10), identifier];
+    if (/^\d+$/.test(cleanId)) {
+      sql = `SELECT * FROM products WHERE id = $1 OR LOWER(slug) = LOWER($2)`;
+      params = [parseInt(cleanId, 10), cleanId];
     }
 
     const productResult = await query(sql, params);
