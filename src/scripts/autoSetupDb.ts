@@ -203,16 +203,25 @@ async function autoSetup(): Promise<void> {
       );
     }
 
-    // Seed default Admin user if not present
-    const adminCheck = await appPool.query(`SELECT 1 FROM users WHERE email = $1`, [
-      'admin@theperfumestory.com',
-    ]);
-    if (adminCheck.rowCount === 0) {
-      await appPool.query(
-        `INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4);`,
-        ['Admin', 'admin@theperfumestory.com', 'admin123', 'admin']
-      );
-      console.log('✓ Default Admin account seeded: admin@theperfumestory.com / admin123');
+    // Seed or synchronize Admin user from environment variables
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@thepperfumestory.com';
+    const adminPassword = process.env.ADMIN_PASSWORD || '';
+    if (adminPassword) {
+      const adminCheck = await appPool.query(`SELECT id FROM users WHERE LOWER(email) = LOWER($1)`, [
+        adminEmail.toLowerCase(),
+      ]);
+      if (adminCheck.rowCount === 0) {
+        await appPool.query(
+          `INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4);`,
+          ['Executive Administrator', adminEmail.toLowerCase(), adminPassword, 'admin']
+        );
+        console.log(`✓ Admin account initialized in database: ${adminEmail}`);
+      } else {
+        await appPool.query(
+          `UPDATE users SET password = $1 WHERE LOWER(email) = LOWER($2) AND role = 'admin'`,
+          [adminPassword, adminEmail.toLowerCase()]
+        );
+      }
     }
 
     // Check if products need seeding

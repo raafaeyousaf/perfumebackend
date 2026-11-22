@@ -153,15 +153,19 @@ async function init() {
     }
     console.log(`Seeded ${initialCategories.length} categories.`);
 
-    // Seed default Admin & Buyer users
-    const adminCheck = await appPool.query(`SELECT 1 FROM users WHERE email = $1`, [
-      'admin@theperfumestory.com',
-    ]);
-    if (adminCheck.rowCount === 0) {
-      await appPool.query(
-        `INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4);`,
-        ['Admin', 'admin@theperfumestory.com', 'admin123', 'admin']
-      );
+    // Seed default Admin user from environment variables
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@thepperfumestory.com';
+    const adminPassword = process.env.ADMIN_PASSWORD || '';
+    if (adminPassword) {
+      const adminCheck = await appPool.query(`SELECT 1 FROM users WHERE LOWER(email) = LOWER($1)`, [
+        adminEmail.toLowerCase(),
+      ]);
+      if (adminCheck.rowCount === 0) {
+        await appPool.query(
+          `INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4);`,
+          ['Executive Administrator', adminEmail.toLowerCase(), adminPassword, 'admin']
+        );
+      }
     }
 
     // Update existing products with category_slug mappings

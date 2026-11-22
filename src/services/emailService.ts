@@ -12,12 +12,12 @@ export interface SendMailOptions {
   authPassword?: string;
 }
 
-const DEFAULT_SMTP_HOST = process.env.SMTP_HOST || 'mail.theperfumesstory.com';
+const DEFAULT_SMTP_HOST = process.env.SMTP_HOST || 'mail.thepperfumestory.com';
 const DEFAULT_SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
-const DEFAULT_MAILBOX_PASS = process.env.SMTP_PASS || 'Raafae@2004';
+const DEFAULT_MAILBOX_PASS = process.env.SMTP_PASS || '';
 
-export const CONTACT_EMAIL = process.env.SMTP_USER_CONTACT || 'contact@theperfumesstory.com';
-export const SALES_EMAIL = process.env.SMTP_USER_SALES || 'sales@theperfumesstory.com';
+export const CONTACT_EMAIL = process.env.SMTP_USER_CONTACT || 'contact@thepperfumestory.com';
+export const SALES_EMAIL = process.env.SMTP_USER_SALES || 'sales@thepperfumestory.com';
 
 /**
  * Raw RFC 5321 / RFC 4954 SMTPS Client (Port 465 TLS / Port 587 STARTTLS)
@@ -84,7 +84,7 @@ export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
       // Server Greeting
       if (step === 0 && (code === 220 || response.startsWith('220'))) {
         step = 1;
-        socket.write(`EHLO theperfumesstory.com\r\n`);
+        socket.write(`EHLO thepperfumestory.com\r\n`);
         return;
       }
 
@@ -184,7 +184,7 @@ export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
 
 /**
  * 1. Send Security Verification OTP Email
- * Sender: contact@theperfumesstory.com
+ * Sender: contact@thepperfumestory.com
  */
 export async function sendOtpEmail(toEmail: string, otpCode: string, purpose: string = 'sign-in'): Promise<boolean> {
   const subject = `Your Security Verification Code: ${otpCode} | The Perfume Story`;
@@ -196,7 +196,7 @@ This one-time passcode is valid for 10 minutes.
 Use it to complete your ${purpose === 'register' ? 'account registration' : 'sign in'} at The Perfume Story.
 
 For scent concierge support, message our VIP WhatsApp at +92 343 5670660.
-Lahore, Pakistan | contact@theperfumesstory.com`;
+Lahore, Pakistan | contact@thepperfumestory.com`;
 
   const html = `
 <!DOCTYPE html>
@@ -266,7 +266,7 @@ Lahore, Pakistan | contact@theperfumesstory.com`;
                 VIP WhatsApp Scent Concierge: <a href="https://wa.me/923435670660" style="color: #111111; font-weight: bold; text-decoration: none;">+92 343 5670660</a>
               </div>
               <div style="font-size: 11px; color: #999999;">
-                The Perfume Story Atelier • Lahore, Pakistan • <a href="mailto:contact@theperfumesstory.com" style="color: #999999;">contact@theperfumesstory.com</a>
+                The Perfume Story Atelier • Lahore, Pakistan • <a href="mailto:contact@thepperfumestory.com" style="color: #999999;">contact@thepperfumestory.com</a>
               </div>
             </td>
           </tr>
@@ -291,7 +291,7 @@ Lahore, Pakistan | contact@theperfumesstory.com`;
 
 /**
  * 2. Send Order Confirmation Email
- * Sender: sales@theperfumesstory.com
+ * Sender: sales@thepperfumestory.com
  */
 export async function sendOrderConfirmationEmail(order: any): Promise<boolean> {
   const items = Array.isArray(order.items)
@@ -321,10 +321,10 @@ Total Amount: PKR ${order.total_amount}
 Payment Method: ${order.payment_method === 'bank_transfer' ? 'EasyPaisa / Bank Transfer' : 'Cash On Delivery'}
 
 Your artisanal extrait de parfum order has been logged in our atelier.
-Track your order anytime: https://theperfumesstory.com/track-order?number=${order.order_number}
+Track your order anytime: https://thepperfumestory.com/track-order?number=${order.order_number}
 
 Questions? WhatsApp Concierge: +92 343 5670660
-sales@theperfumesstory.com`;
+sales@thepperfumestory.com`;
 
   const itemsHtml = items
     .map(
@@ -430,7 +430,7 @@ sales@theperfumesstory.com`;
 
               <!-- Action Link -->
               <div style="text-align: center; margin-bottom: 12px;">
-                <a href="https://theperfumesstory.com/track-order?number=${order.order_number}" style="display: inline-block; background-color: #0d0d0d; color: #ffffff; text-decoration: none; padding: 14px 28px; font-size: 12px; font-weight: bold; letter-spacing: 0.12em; text-transform: uppercase; border-radius: 2px;">
+                <a href="https://thepperfumestory.com/track-order?number=${order.order_number}" style="display: inline-block; background-color: #0d0d0d; color: #ffffff; text-decoration: none; padding: 14px 28px; font-size: 12px; font-weight: bold; letter-spacing: 0.12em; text-transform: uppercase; border-radius: 2px;">
                   Track Live Shipment &rarr;
                 </a>
               </div>
@@ -444,7 +444,7 @@ sales@theperfumesstory.com`;
                 WhatsApp Helpline: <a href="https://wa.me/923435670660" style="color: #111111; font-weight: bold; text-decoration: none;">+92 343 5670660</a>
               </div>
               <div style="font-size: 11px; color: #999999;">
-                The Perfume Story • Artisanal Extraits • <a href="mailto:sales@theperfumesstory.com" style="color: #999999;">sales@theperfumesstory.com</a>
+                The Perfume Story • Artisanal Extraits • <a href="mailto:sales@thepperfumestory.com" style="color: #999999;">sales@thepperfumestory.com</a>
               </div>
             </td>
           </tr>
@@ -469,7 +469,7 @@ sales@theperfumesstory.com`;
 
 /**
  * 3. Send Official Itemized Order Receipt & Tax Invoice Email
- * Sender: sales@theperfumesstory.com
+ * Sender: sales@thepperfumestory.com
  */
 export async function sendOrderReceiptEmail(order: any): Promise<boolean> {
   const items = Array.isArray(order.items)
@@ -491,8 +491,8 @@ Grand Total Amount: PKR ${order.total_amount}
 
 ${isBank ? 'EASYPAISA PAYMENT INSTRUCTIONS:\nPlease transfer PKR ' + order.total_amount + ' to EasyPaisa: +92 343 5670660 (03435670660).\nShare transaction receipt screenshot on WhatsApp to +92 343 5670660.' : 'PAYMENT: Cash on Delivery upon shipment handover.'}
 
-Print or View Receipt: https://theperfumesstory.com/orders/receipt/${order.order_number}
-WhatsApp Helpline: +92 343 5670660 | sales@theperfumesstory.com`;
+Print or View Receipt: https://thepperfumestory.com/orders/receipt/${order.order_number}
+WhatsApp Helpline: +92 343 5670660 | sales@thepperfumestory.com`;
 
   const itemsHtml = items
     .map(
@@ -637,7 +637,7 @@ WhatsApp Helpline: +92 343 5670660 | sales@theperfumesstory.com`;
 
               <!-- Printable Receipt Link -->
               <div style="text-align: center; margin-bottom: 12px;">
-                <a href="https://theperfumesstory.com/orders/receipt/${order.order_number}" style="display: inline-block; background-color: #0d0d0d; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 11.5px; font-weight: bold; letter-spacing: 0.1em; text-transform: uppercase; border-radius: 2px;">
+                <a href="https://thepperfumestory.com/orders/receipt/${order.order_number}" style="display: inline-block; background-color: #0d0d0d; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 11.5px; font-weight: bold; letter-spacing: 0.1em; text-transform: uppercase; border-radius: 2px;">
                   Open Printable Receipt &rarr;
                 </a>
               </div>
@@ -651,7 +651,7 @@ WhatsApp Helpline: +92 343 5670660 | sales@theperfumesstory.com`;
                 WhatsApp Billing Concierge: <a href="https://wa.me/923435670660" style="color: #111; font-weight: bold;">+92 343 5670660</a>
               </div>
               <div style="font-size: 11px; color: #999999;">
-                The Perfume Story • All formulations macerated 60+ days • <a href="mailto:sales@theperfumesstory.com" style="color: #999999;">sales@theperfumesstory.com</a>
+                The Perfume Story • All formulations macerated 60+ days • <a href="mailto:sales@thepperfumestory.com" style="color: #999999;">sales@thepperfumestory.com</a>
               </div>
             </td>
           </tr>
@@ -676,7 +676,7 @@ WhatsApp Helpline: +92 343 5670660 | sales@theperfumesstory.com`;
 
 /**
  * 4. Send Cart Notification / Reservation Email
- * Sender: sales@theperfumesstory.com
+ * Sender: sales@thepperfumestory.com
  */
 export async function sendCartNotificationEmail(toEmail: string, customerName: string, product: any, size: any, quantity: number): Promise<boolean> {
   const price = (Number(size?.price) || Number(product.price) || 2950) * quantity;
@@ -688,7 +688,7 @@ Dear ${customerName || 'Valued Client'},
 You recently added ${product.name} (${size?.size || '55 ml'} x ${quantity}) to your shopping bag.
 Total Amount: PKR ${price.toLocaleString()}
 
-Complete your acquisition now: https://theperfumesstory.com/checkout
+Complete your acquisition now: https://thepperfumestory.com/checkout
 WhatsApp Concierge: +92 343 5670660`;
 
   const html = `
@@ -721,7 +721,7 @@ WhatsApp Concierge: +92 343 5670660`;
                 <div style="font-size: 16px; font-weight: bold; color: #b38e5d;">Rs. ${price.toLocaleString()}</div>
               </div>
               <div style="text-align: center;">
-                <a href="https://theperfumesstory.com/checkout" style="display: inline-block; background-color: #0d0d0d; color: #ffffff; text-decoration: none; padding: 13px 28px; font-size: 11.5px; font-weight: bold; letter-spacing: 0.1em; text-transform: uppercase;">
+                <a href="https://thepperfumestory.com/checkout" style="display: inline-block; background-color: #0d0d0d; color: #ffffff; text-decoration: none; padding: 13px 28px; font-size: 11.5px; font-weight: bold; letter-spacing: 0.1em; text-transform: uppercase;">
                   Proceed to Secure Checkout &rarr;
                 </a>
               </div>

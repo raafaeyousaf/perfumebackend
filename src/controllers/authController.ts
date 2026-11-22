@@ -128,7 +128,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 };
 
 // 3. Send 6-Digit OTP Code
-// Sender: contact@theperfumesstory.com
+// Sender: contact@thepperfumestory.com
 export const sendOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureOtpsTable();
@@ -155,14 +155,14 @@ export const sendOtp = async (req: Request, res: Response): Promise<void> => {
       [cleanEmail, otpCode, purpose]
     );
 
-    // Send email from contact@theperfumesstory.com asynchronously
+    // Send email from contact@thepperfumestory.com asynchronously
     sendOtpEmail(cleanEmail, otpCode, purpose).catch((err) => {
       console.warn('Background sendOtpEmail error:', err);
     });
 
     res.json({
       success: true,
-      message: `A 6-digit security code has been dispatched to ${cleanEmail} from contact@theperfumesstory.com.`,
+      message: `A 6-digit security code has been dispatched to ${cleanEmail} from contact@thepperfumestory.com.`,
       // For instant debugging / local testing if SMTP network blocked:
       expires_in_minutes: 10,
     });

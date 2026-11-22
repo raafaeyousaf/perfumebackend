@@ -126,7 +126,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
     const savedOrder = insertResult.rows[0];
 
-    // Asynchronously dispatch the 2 official emails from sales@theperfumesstory.com:
+    // Asynchronously dispatch the 2 official emails from sales@thepperfumestory.com:
     // 1. Order Confirmation Email
     // 2. Official Tax Invoice & Order Receipt Email
     Promise.allSettled([
@@ -315,7 +315,7 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
   }
 };
 
-// 6. Notify Cart: Dispatches cart reservation email from sales@theperfumesstory.com
+// 6. Notify Cart: Dispatches cart reservation email from sales@thepperfumestory.com
 export const notifyCart = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, name, product, size, quantity = 1 } = req.body;

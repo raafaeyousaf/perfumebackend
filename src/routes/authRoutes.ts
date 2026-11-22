@@ -7,7 +7,7 @@ const router = Router();
 router.post('/login', login);
 router.post('/register', register);
 
-// OTP Email Auth (Sender: contact@theperfumesstory.com)
+// OTP Email Auth (Sender: contact@thepperfumestory.com)
 router.post('/send-otp', sendOtp);
 router.post('/verify-otp', verifyOtp);
 
