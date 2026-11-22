@@ -143,6 +143,19 @@ export const sendOtp = async (req: Request, res: Response): Promise<void> => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+
+    // If purpose is signup or register, ensure account does not already exist
+    if (purpose === 'signup' || purpose === 'register') {
+      const existing = await query(`SELECT 1 FROM users WHERE LOWER(email) = LOWER($1)`, [cleanEmail]);
+      if (existing.rowCount && existing.rowCount > 0) {
+        res.status(400).json({
+          success: false,
+          message: 'An account with this email already exists. Please sign in instead.',
+        });
+        return;
+      }
+    }
+
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Remove any previous active OTPs for this email
@@ -180,7 +193,7 @@ export const sendOtp = async (req: Request, res: Response): Promise<void> => {
 export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureOtpsTable();
-    const { email, code, name } = req.body;
+    const { email, code, name, password } = req.body;
 
     if (!email || !code) {
       res.status(400).json({
@@ -219,12 +232,12 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
     if (userResult.rows.length > 0) {
       user = userResult.rows[0];
     } else {
-      // Auto-register new buyer account
+      // Auto-register new buyer account with their chosen password
       const displayName = name && name.trim() ? name.trim() : cleanEmail.split('@')[0];
-      const autoPass = `otp-${Date.now()}`;
+      const userPassword = password && password.trim() ? password.trim() : `user-${Date.now()}`;
       const newUserRes = await query(
         `INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, 'buyer') RETURNING id, name, email, role`,
-        [displayName, cleanEmail, autoPass]
+        [displayName, cleanEmail, userPassword]
       );
       user = newUserRes.rows[0];
     }
