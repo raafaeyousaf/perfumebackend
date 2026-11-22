@@ -224,6 +224,7 @@ export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
     new Set(['smtp.hostinger.com', primaryHost, 'smtp.titan.email'])
   ).filter(Boolean) as string[];
 
+  // 1. First attempt with requested authEmail (e.g. sales@thepperfumestory.com)
   for (const host of candidateHosts) {
     try {
       const ok = await attemptSmtpSend(host, port, options, password);
@@ -232,6 +233,27 @@ export async function sendEmailRaw(options: SendMailOptions): Promise<boolean> {
         return true;
       }
     } catch { }
+  }
+
+  // 2. If requested authEmail failed (e.g. sales@ is not yet created on Hostinger or has different pass),
+  // automatically fallback to the verified working CONTACT_EMAIL (contact@thepperfumestory.com)
+  if (options.authEmail !== CONTACT_EMAIL) {
+    console.log(`[SMTP Fallback] Retrying delivery to ${options.to} via verified mailbox "${CONTACT_EMAIL}"...`);
+    const fallbackOptions: SendMailOptions = {
+      ...options,
+      from: `"The Perfume Story Dispatch" <${CONTACT_EMAIL}>`,
+      senderEmail: CONTACT_EMAIL,
+      authEmail: CONTACT_EMAIL,
+    };
+    for (const host of candidateHosts) {
+      try {
+        const ok = await attemptSmtpSend(host, port, fallbackOptions, password);
+        if (ok) {
+          console.log(`✓ [SMTP Success via Contact Fallback] Delivered email to ${options.to} via ${host}:${port}!`);
+          return true;
+        }
+      } catch { }
+    }
   }
 
   console.warn(`[SMTP Fallback] Outbound SMTP connection blocked or offline on local network. Logging email.`);
