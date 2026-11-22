@@ -165,6 +165,17 @@ async function autoSetup(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
       CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number);
       CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+
+      -- OTP Verification Codes
+      CREATE TABLE IF NOT EXISTS otps (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        code VARCHAR(10) NOT NULL,
+        purpose VARCHAR(50) DEFAULT 'login',
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_otps_email ON otps(LOWER(email));
     `);
 
     // Seed Categories

@@ -5,12 +5,16 @@ import {
   getMyOrders,
   trackOrder,
   updateOrderStatus,
+  notifyCart,
 } from '../controllers/orderController.js';
 
 const router = Router();
 
 // Create new order
 router.post('/', createOrder);
+
+// Notify Cart Reservation
+router.post('/cart-notify', notifyCart);
 
 // Admin: Get all orders
 router.get('/', getAllOrders);

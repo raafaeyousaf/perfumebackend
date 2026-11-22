@@ -1,5 +1,10 @@
 import { Request, Response } from 'express';
 import { query } from '../config/db.js';
+import {
+  sendOrderConfirmationEmail,
+  sendOrderReceiptEmail,
+  sendCartNotificationEmail,
+} from '../services/emailService.js';
 
 export interface OrderItem {
   product_id: number;
@@ -119,10 +124,22 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       ]
     );
 
+    const savedOrder = insertResult.rows[0];
+
+    // Asynchronously dispatch the 2 official emails from sales@theperfumesstory.com:
+    // 1. Order Confirmation Email
+    // 2. Official Tax Invoice & Order Receipt Email
+    Promise.allSettled([
+      sendOrderConfirmationEmail(savedOrder),
+      sendOrderReceiptEmail(savedOrder),
+    ]).catch((err) => {
+      console.warn('Background order email dispatch warning:', err);
+    });
+
     res.status(201).json({
       success: true,
       message: 'Order placed successfully! The atelier is preparing your consignment.',
-      order: insertResult.rows[0],
+      order: savedOrder,
     });
   } catch (error: any) {
     console.error('Error creating order:', error);
@@ -295,5 +312,25 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
       message: 'Failed to update order status.',
       error: error.message,
     });
+  }
+};
+
+// 6. Notify Cart: Dispatches cart reservation email from sales@theperfumesstory.com
+export const notifyCart = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, name, product, size, quantity = 1 } = req.body;
+    if (!email || !product) {
+      res.status(400).json({ success: false, message: 'Email and product details are required.' });
+      return;
+    }
+
+    sendCartNotificationEmail(email.trim().toLowerCase(), name || '', product, size, quantity).catch((err) => {
+      console.warn('Background cart notification email warning:', err);
+    });
+
+    res.json({ success: true, message: 'Cart reservation email dispatched.' });
+  } catch (error: any) {
+    console.error('Error notifying cart:', error);
+    res.status(500).json({ success: false, message: 'Failed to notify cart.', error: error.message });
   }
 };
