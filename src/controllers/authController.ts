@@ -28,7 +28,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const user = result.rows[0];
 
-    // For now simple password comparison (can be enhanced with bcrypt)
+    // Password comparison
     if (user.password !== password) {
       res.status(401).json({
         success: false,
@@ -37,25 +37,16 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Role check: Only admin is permitted to login for now as requested
-    if (user.role !== 'admin') {
-      res.status(403).json({
-        success: false,
-        message: 'Customer accounts are view-only right now. Only Admin can log in.',
-      });
-      return;
-    }
-
     res.json({
       success: true,
-      message: 'Admin logged in successfully',
+      message: `${user.role === 'admin' ? 'Administrator' : 'User'} logged in successfully`,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
       },
-      token: `admin-token-${user.id}-${Date.now()}`,
+      token: `${user.role}-token-${user.id}-${Date.now()}`,
     });
   } catch (error: any) {
     console.error('Error during login:', error);
