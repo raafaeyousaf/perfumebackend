@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import productRoutes from './routes/productRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
 import { query } from './config/db.js';
 
 dotenv.config();
@@ -54,6 +55,7 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
 
 // 404 Handler
 app.use((_req, res) => {
@@ -67,6 +69,7 @@ app.listen(PORT, () => {
   console.log(`Port: ${PORT}`);
   console.log(`Categories: http://localhost:${PORT}/api/categories`);
   console.log(`Products:   http://localhost:${PORT}/api/products`);
+  console.log(`Orders:     http://localhost:${PORT}/api/orders`);
   console.log(`Auth:       http://localhost:${PORT}/api/auth/login`);
   console.log(`=========================================`);
 });

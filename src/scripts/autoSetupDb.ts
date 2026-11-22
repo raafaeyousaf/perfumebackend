@@ -140,6 +140,33 @@ async function autoSetup(): Promise<void> {
       );
     `);
 
+    // Orders
+    await appPool.query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id SERIAL PRIMARY KEY,
+        order_number VARCHAR(50) UNIQUE NOT NULL,
+        user_id INT REFERENCES users(id) ON DELETE SET NULL,
+        customer_name VARCHAR(150) NOT NULL,
+        customer_email VARCHAR(255) NOT NULL,
+        customer_phone VARCHAR(50) NOT NULL,
+        shipping_address TEXT NOT NULL,
+        city VARCHAR(100) NOT NULL,
+        postal_code VARCHAR(20),
+        order_notes TEXT,
+        payment_method VARCHAR(50) DEFAULT 'cod',
+        subtotal NUMERIC(10, 2) NOT NULL,
+        shipping_fee NUMERIC(10, 2) DEFAULT 0,
+        total_amount NUMERIC(10, 2) NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        items JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+      CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number);
+      CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+    `);
+
     // Seed Categories
     const initialCategories = [
       { name: 'Catalog', slug: 'catalog', description: 'Complete collection of artisanal extraits', display_order: 1 },
