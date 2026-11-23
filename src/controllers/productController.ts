@@ -167,12 +167,18 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const finalSlug =
+    let finalSlug =
       slug ||
       name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
+
+    // Auto deduplicate slug if it already exists
+    const existingSlug = await query('SELECT id FROM products WHERE slug = $1', [finalSlug]);
+    if (existingSlug.rows.length > 0) {
+      finalSlug = `${finalSlug}-${Date.now().toString().slice(-4)}`;
+    }
 
     const insertSql = `
       INSERT INTO products (
